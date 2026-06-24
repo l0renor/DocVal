@@ -37,3 +37,37 @@ class FakeModelClient:
         if self._extraction is None:
             raise AssertionError("FakeModelClient.extract_and_validate called without a canned extraction")
         return self._extraction
+
+
+class ScriptedModelClient:
+    """Fake driven by per-page classifications, for segmentation tests.
+
+    `page_types` lists the Stufe-1 type each page classifies as, in page order
+    (`classify` is called once per page during segmentation). `extractions` maps
+    a configured type id to its Stufe-2 outcome; a type with no canned outcome
+    raises if extraction is attempted (proving wrong types skip Stufe 2).
+    """
+
+    def __init__(
+        self,
+        page_types: Sequence[str],
+        extractions: dict[str, ExtractionOutcome] | None = None,
+    ):
+        self._page_types = list(page_types)
+        self._extractions = extractions or {}
+        self._classify_calls = 0
+
+    def classify(self, images: Sequence[bytes], config: Config) -> Classification:
+        doc_type = self._page_types[self._classify_calls]
+        self._classify_calls += 1
+        return Classification(document_type=doc_type)
+
+    def extract_and_validate(
+        self, images: Sequence[bytes], doc_type: DocumentTypeConfig
+    ) -> ExtractionOutcome:
+        outcome = self._extractions.get(doc_type.id)
+        if outcome is None:
+            raise AssertionError(
+                f"ScriptedModelClient has no canned extraction for type {doc_type.id!r}"
+            )
+        return outcome

@@ -1,7 +1,10 @@
 """Two-stage pipeline: Stufe 1 classify -> Stufe 2 extract + validate.
 
-On a wrong type, extraction is skipped and the result reports `invalid_type`
-(reported only — DocVerify never filters or blocks uploads).
+An upload is first segmented into sub-documents (a single PDF may bundle
+several distinct documents); each sub-document then runs the two stages
+independently and contributes one result. On a wrong type, extraction is
+skipped and that sub-document reports `invalid_type` (reported only —
+DocVerify never filters or blocks uploads).
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from .schemas import (
     ValidationResult,
     ValidationStatus,
 )
+from .segment import Segment, segment_pages
 
 _LEGIBILITY_SCORE = {
     Legibility.LEGIBLE: 1.0,
@@ -36,23 +40,28 @@ class Pipeline:
         self._config = config
         self._model = model_client
 
-    def run(self, images: Sequence[bytes]) -> ValidationResult:
-        # Stufe 1 looks at page 1 only; Stufe 2 sees all pages.
-        classification = self._model.classify(list(images[:1]), self._config)
-        doc_type = self._config.get(classification.document_type)
+    def run(self, images: Sequence[bytes]) -> list[ValidationResult]:
+        """Segment the upload, then validate each sub-document independently."""
+        segments = segment_pages(images, self._model, self._config)
+        return [self._validate(segment) for segment in segments]
+
+    def _validate(self, segment: Segment) -> ValidationResult:
+        # Stufe 1 already produced the classification during segmentation.
+        doc_type = self._config.get(segment.classification.document_type)
 
         if doc_type is None:
             return ValidationResult(
                 validation_status=ValidationStatus.INVALID_TYPE,
                 confidence=0.0,
-                classification=classification,
+                classification=segment.classification,
             )
 
-        outcome = self._model.extract_and_validate(images, doc_type)
+        # Stufe 2 sees every page of this sub-document.
+        outcome = self._model.extract_and_validate(segment.images, doc_type)
         return ValidationResult(
             validation_status=outcome.validation_status,
             confidence=aggregate_confidence(outcome.fields),
-            classification=classification,
+            classification=segment.classification,
             extracted_data=outcome.fields,
             deficiencies=outcome.deficiencies,
             internal_note=outcome.internal_note,

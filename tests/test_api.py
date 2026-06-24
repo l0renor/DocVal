@@ -12,12 +12,17 @@ def test_submit_returns_job_id_and_job_completes_with_a_verdict(client):
     assert job.status_code == 200
     body = job.json()
     assert body["status"] == "done"
-    assert body["result"]["validation_status"] in {"accepted", "incomplete", "invalid_type"}
+    # A single-image upload yields exactly one result (no false splits).
+    assert len(body["results"]) == 1
+    assert body["results"][0]["validation_status"] in {"accepted", "incomplete", "invalid_type"}
 
 
 def _run(client):
+    """Run a single-image upload through the seam and return its sole result."""
     job_id = client.post("/documents", files=_image_upload()).json()["job_id"]
-    return client.get(f"/jobs/{job_id}").json()["result"]
+    results = client.get(f"/jobs/{job_id}").json()["results"]
+    assert len(results) == 1
+    return results[0]
 
 
 def test_accepted_document_reports_accepted_with_extracted_data(make_client, accepted_fake):

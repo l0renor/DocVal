@@ -30,8 +30,8 @@ def create_app(
             images = render_to_images(file.filename, file.content_type, data, ingest_settings)
         except IngestError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
-        result = pipeline.run(images)
-        job_id = jobs.create_done(result)
+        results = pipeline.run(images)
+        job_id = jobs.create_done(results)
         return {"job_id": job_id}
 
     @app.get("/jobs/{job_id}")
@@ -39,7 +39,7 @@ def create_app(
         job = jobs.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        return {"status": job.status, "result": job.result}
+        return {"status": job.status, "results": job.results}
 
     return app
 

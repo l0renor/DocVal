@@ -11,16 +11,16 @@ from .schemas import ValidationResult
 @dataclass
 class Job:
     status: str
-    result: ValidationResult | None
+    results: list[ValidationResult] | None
 
 
 class JobStore:
     def __init__(self) -> None:
         self._jobs: dict[str, Job] = {}
 
-    def create_done(self, result: ValidationResult) -> str:
+    def create_done(self, results: list[ValidationResult]) -> str:
         job_id = uuid.uuid4().hex
-        self._jobs[job_id] = Job(status="done", result=result)
+        self._jobs[job_id] = Job(status="done", results=results)
         return job_id
 
     def get(self, job_id: str) -> Job | None:

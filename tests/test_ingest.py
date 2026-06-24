@@ -84,17 +84,20 @@ def _config():
     )
 
 
-def test_pdf_classify_uses_page1_extract_uses_all_pages():
+def test_single_type_pdf_classifies_each_page_then_extracts_whole_document():
     model = _RecordingModel()
     client = TestClient(create_app(config=_config(), model_client=model))
 
     resp = client.post("/documents", files={"file": ("doc.pdf", make_pdf(3), "application/pdf")})
     assert resp.status_code == 202
     job_id = resp.json()["job_id"]
-    result = client.get(f"/jobs/{job_id}").json()["result"]
+    results = client.get(f"/jobs/{job_id}").json()["results"]
 
-    assert result["validation_status"] == "accepted"
-    assert model.classify_page_counts == [1]
+    # All three pages classify the same -> one sub-document, one result.
+    assert len(results) == 1
+    assert results[0]["validation_status"] == "accepted"
+    # Segmentation classifies every page (one page each); Stufe 2 sees all 3.
+    assert model.classify_page_counts == [1, 1, 1]
     assert model.extract_page_counts == [3]
 
 

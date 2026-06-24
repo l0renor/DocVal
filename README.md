@@ -33,7 +33,10 @@ uv run uvicorn --factory docval.main:create
 API (async job model):
 
 - `POST /documents` (multipart file) → `202 {"job_id": "..."}`
-- `GET /jobs/{job_id}` → `{"status": "done", "result": { ... }}`
+- `GET /jobs/{job_id}` → `{"status": "done", "results": [ { ... } ]}`
+  — `results` is a list with one validation result per detected sub-document
+  (a bundled PDF is segmented into individual documents; a single document
+  yields a one-element list).
 - OpenAPI docs at `/docs`.
 
 ## Configuration
