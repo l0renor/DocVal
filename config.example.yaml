@@ -1,0 +1,48 @@
+# DocVerify configuration — structured keys with natural-language values.
+# Fachaufsichten edit the prose values; the keys/shape are schema-validated on load.
+# This file is illustrative; the system generalizes to any document type.
+
+document_types:
+  - id: personalausweis
+    description: >-
+      A German national identity card (Personalausweis) or passport. Not a
+      driving licence, residence permit, or any other ID document.
+    expected_fields:
+      - name: nachname
+        description: Surname (Nachname) as printed on the document.
+        type_hint: string
+      - name: vornamen
+        description: All given names (Vornamen).
+        type_hint: string
+      - name: geburtsdatum
+        description: Date of birth (Geburtsdatum).
+        type_hint: date
+      - name: seriennummer
+        description: The 9-character serial number (Seriennummer / Zugangsnummer).
+        type_hint: string
+    criteria: >-
+      Must be a valid German identity card or passport whose expiry date is not
+      in the past. Core identification data (name, date of birth, serial number)
+      must be present and unredacted.
+
+  - id: mietvertrag
+    description: >-
+      A legally valid residential tenancy agreement (Wohnraum-Mietvertrag),
+      not a commercial lease.
+    expected_fields:
+      - name: vermieter
+        description: Name of the landlord (Vermieter).
+        type_hint: string
+      - name: mieter
+        description: Name of the tenant (Mieter).
+        type_hint: string
+      - name: wohnflaeche_qm
+        description: Living area in square metres (Wohnfläche), as a number.
+        type_hint: number
+      - name: bruttowarmmiete
+        description: Monthly gross rent incl. utilities (Bruttowarmmiete), as a number.
+        type_hint: number
+    criteria: >-
+      Must be a residential (not commercial) tenancy agreement. Both contracting
+      parties must be clearly named, and living area and rent must appear as
+      explicit numeric values.
