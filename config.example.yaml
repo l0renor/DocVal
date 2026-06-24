@@ -20,10 +20,25 @@ document_types:
       - name: seriennummer
         description: The 9-character serial number (Seriennummer / Zugangsnummer).
         type_hint: string
+      - name: gueltig_bis
+        description: Expiry date (gültig bis) in ISO format YYYY-MM-DD.
+        type_hint: date
     criteria: >-
       Must be a valid German identity card or passport whose expiry date is not
       in the past. Core identification data (name, date of birth, serial number)
       must be present and unredacted.
+    # Optional hybrid layer: deterministic checks applied after the model verdict.
+    # A failed rule adds a Mängel and downgrades an "accepted" verdict to "incomplete".
+    rules:
+      - field: nachname
+        kind: required
+      - field: seriennummer
+        kind: format
+        pattern: '^.{9}$'
+        message: Seriennummer must be exactly 9 characters.
+      - field: gueltig_bis
+        kind: not_in_past
+        message: The identity document has expired.
 
   - id: mietvertrag
     description: >-
@@ -46,3 +61,19 @@ document_types:
       Must be a residential (not commercial) tenancy agreement. Both contracting
       parties must be clearly named, and living area and rent must appear as
       explicit numeric values.
+
+  - id: sprachzertifikat
+    description: >-
+      A recognised German language proficiency certificate stating a CEFR
+      (GER) level, e.g. Goethe-Zertifikat or telc.
+    expected_fields:
+      - name: ger_level
+        description: The CEFR / GER level (e.g. B1) as printed on the certificate.
+        type_hint: string
+    criteria: >-
+      Must state a CEFR level and be a recognised certificate.
+    rules:
+      - field: ger_level
+        kind: allowed_values
+        allowed: [A1, A2, B1, B2, C1, C2]
+        message: The certificate must state a recognised CEFR level (A1–C2).

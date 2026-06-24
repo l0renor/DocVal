@@ -43,3 +43,10 @@ API (async job model):
 
 `config.example.yaml` defines document types with structured keys and
 natural-language values (edited by Fachaufsichten, schema-validated on load).
+
+Each type may carry an optional `rules` block — a hybrid deterministic layer
+that runs after the model verdict for auditable, code-level checks. Supported
+kinds: `required`, `format` (regex `pattern`), `allowed_values` (`allowed`
+list), and `not_in_past` (ISO date). A failed rule adds a Mängel and downgrades
+an `accepted` verdict to `incomplete`; with no rules configured the model
+verdict is returned unchanged.

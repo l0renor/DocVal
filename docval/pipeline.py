@@ -9,10 +9,12 @@ DocVerify never filters or blocks uploads).
 
 from __future__ import annotations
 
-from typing import Sequence
+from datetime import date
+from typing import Callable, Sequence
 
 from .config import Config
 from .model_client import ModelClient
+from .rules import apply_rules
 from .schemas import (
     FieldResult,
     Legibility,
@@ -36,9 +38,15 @@ def aggregate_confidence(fields: Sequence[FieldResult]) -> float:
 
 
 class Pipeline:
-    def __init__(self, config: Config, model_client: ModelClient):
+    def __init__(
+        self,
+        config: Config,
+        model_client: ModelClient,
+        today: Callable[[], date] = date.today,
+    ):
         self._config = config
         self._model = model_client
+        self._today = today
 
     def run(self, images: Sequence[bytes]) -> list[ValidationResult]:
         """Segment the upload, then validate each sub-document independently."""
@@ -58,7 +66,7 @@ class Pipeline:
 
         # Stufe 2 sees every page of this sub-document.
         outcome = self._model.extract_and_validate(segment.images, doc_type)
-        return ValidationResult(
+        result = ValidationResult(
             validation_status=outcome.validation_status,
             confidence=aggregate_confidence(outcome.fields),
             classification=segment.classification,
@@ -66,3 +74,6 @@ class Pipeline:
             deficiencies=outcome.deficiencies,
             internal_note=outcome.internal_note,
         )
+
+        # Optional hybrid layer: deterministic rules reconcile the model verdict.
+        return apply_rules(doc_type.rules, result, self._today())

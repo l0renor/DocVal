@@ -11,6 +11,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
+from .rules import Rule
+
 
 class ConfigError(Exception):
     """Raised when a config file cannot be read, parsed, or validated."""
@@ -27,6 +29,7 @@ class DocumentTypeConfig(BaseModel):
     description: str
     expected_fields: list[ExpectedField] = Field(default_factory=list)
     criteria: str | None = None
+    rules: list[Rule] = Field(default_factory=list)
 
 
 class Config(BaseModel):
