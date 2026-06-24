@@ -16,14 +16,25 @@ function isFlagged(field) {
 function displayValue(field) {
   return isMissing(field) ? 'fehlt' : field.value
 }
+
+const LEGIBILITY = {
+  legible: { color: 'success', label: 'lesbar' },
+  partial: { color: 'warning', label: 'teilweise' },
+  illegible: { color: 'error', label: 'unleserlich' },
+}
+
+function legibility(field) {
+  return LEGIBILITY[field.legibility] || { color: 'grey', label: field.legibility }
+}
 </script>
 
 <template>
-  <v-table density="comfortable">
+  <v-table density="comfortable" class="fields-table">
     <thead>
       <tr>
-        <th>Feld</th>
-        <th>Wert</th>
+        <th class="text-left">Feld</th>
+        <th class="text-left">Wert</th>
+        <th class="text-left">Lesbarkeit</th>
       </tr>
     </thead>
     <tbody>
@@ -32,14 +43,33 @@ function displayValue(field) {
         :key="field.name"
         :data-testid="`field-${field.name}`"
         :data-flagged="String(isFlagged(field))"
-        :class="{ 'text-red': isFlagged(field) }"
+        :class="{ 'flagged-row': isFlagged(field) }"
       >
-        <td>{{ field.name }}</td>
+        <td class="font-weight-medium">{{ field.name }}</td>
         <td>
-          {{ displayValue(field) }}
-          <v-icon v-if="isFlagged(field)" color="red" size="small" icon="mdi-alert" />
+          <span :class="{ 'text-error font-italic': isMissing(field) }">
+            {{ displayValue(field) }}
+          </span>
+          <v-icon
+            v-if="isFlagged(field)"
+            color="error"
+            size="small"
+            icon="mdi-alert"
+            class="ms-1"
+          />
+        </td>
+        <td>
+          <v-chip :color="legibility(field).color" size="small" variant="tonal" label>
+            {{ legibility(field).label }}
+          </v-chip>
         </td>
       </tr>
     </tbody>
   </v-table>
 </template>
+
+<style scoped>
+.flagged-row {
+  background-color: rgba(198, 40, 40, 0.06);
+}
+</style>
