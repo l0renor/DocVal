@@ -37,7 +37,8 @@ class Pipeline:
         self._model = model_client
 
     def run(self, images: Sequence[bytes]) -> ValidationResult:
-        classification = self._model.classify(images, self._config)
+        # Stufe 1 looks at page 1 only; Stufe 2 sees all pages.
+        classification = self._model.classify(list(images[:1]), self._config)
         doc_type = self._config.get(classification.document_type)
 
         if doc_type is None:
