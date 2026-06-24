@@ -1,3 +1,18 @@
+from fastapi.testclient import TestClient
+
+from docval.app import create_app
+from docval.config import Config, DocumentTypeConfig, ExpectedField
+from docval.model_client import FakeModelClient
+from docval.rules import Rule, RuleKind
+from docval.schemas import (
+    Classification,
+    ExtractionOutcome,
+    FieldResult,
+    Legibility,
+    ValidationStatus,
+)
+
+
 def _image_upload(name="id.jpg"):
     return {"file": (name, b"fake-image-bytes", "image/jpeg")}
 
@@ -42,6 +57,35 @@ def test_wrong_type_reports_invalid_type_and_skips_extraction(make_client, wrong
     result = _run(make_client(wrong_type_fake))
     assert result["validation_status"] == "invalid_type"
     assert result["extracted_data"] == []
+
+
+def test_deterministic_rule_overrides_model_accepted_verdict():
+    # The model accepts the document, but a config rule rejects the serial format.
+    config = Config(
+        document_types=[
+            DocumentTypeConfig(
+                id="personalausweis",
+                description="A German ID.",
+                expected_fields=[ExpectedField(name="seriennummer", description="serial")],
+                criteria="valid",
+                rules=[Rule(field="seriennummer", kind=RuleKind.FORMAT, pattern=r"^\d{9}$")],
+            )
+        ]
+    )
+    model = FakeModelClient(
+        classification=Classification(document_type="personalausweis"),
+        extraction=ExtractionOutcome(
+            validation_status=ValidationStatus.ACCEPTED,
+            fields=[FieldResult(name="seriennummer", value="ABC", legibility=Legibility.LEGIBLE)],
+        ),
+    )
+    client = TestClient(create_app(config=config, model_client=model))
+
+    job_id = client.post("/documents", files=_image_upload()).json()["job_id"]
+    result = client.get(f"/jobs/{job_id}").json()["results"][0]
+
+    assert result["validation_status"] == "incomplete"
+    assert any(d["field"] == "seriennummer" for d in result["deficiencies"])
 
 
 def test_unknown_job_returns_404(client):
