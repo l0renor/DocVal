@@ -103,3 +103,30 @@ document_types:
 def test_missing_file_fails_loudly(tmp_path):
     with pytest.raises(ConfigError):
         load_config(tmp_path / "does-not-exist.yaml")
+
+
+# --- parse_config: inline dict source ---
+
+from docval.config import parse_config  # noqa: E402
+
+
+VALID_DICT = {
+    "document_types": [
+        {
+            "id": "personalausweis",
+            "description": "A German national identity card.",
+            "expected_fields": [{"name": "nachname", "description": "Surname"}],
+            "criteria": "Must be valid.",
+        }
+    ]
+}
+
+
+def test_parse_config_accepts_valid_dict():
+    cfg = parse_config(VALID_DICT)
+    assert cfg.get("personalausweis").id == "personalausweis"
+
+
+def test_parse_config_raises_config_error_on_malformed_dict():
+    with pytest.raises(ConfigError):
+        parse_config({"document_types": "not-a-list"})

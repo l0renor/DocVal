@@ -14,7 +14,7 @@ from docval.schemas import (
 
 
 def _image_upload(name="id.jpg"):
-    return {"file": (name, b"fake-image-bytes", "image/jpeg")}
+    return [("files", (name, b"fake-image-bytes", "image/jpeg"))]
 
 
 def test_submit_returns_job_id_and_job_completes_with_a_verdict(client):

@@ -57,7 +57,7 @@ def _extractions():
 
 def _submit(config, model, pdf):
     client = TestClient(create_app(config=config, model_client=model))
-    job_id = client.post("/documents", files={"file": ("bundle.pdf", pdf, "application/pdf")}).json()["job_id"]
+    job_id = client.post("/documents", files=[("files", ("bundle.pdf", pdf, "application/pdf"))]).json()["job_id"]
     return client.get(f"/jobs/{job_id}").json()["results"]
 
 

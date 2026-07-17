@@ -88,7 +88,7 @@ def test_single_type_pdf_classifies_each_page_then_extracts_whole_document():
     model = _RecordingModel()
     client = TestClient(create_app(config=_config(), model_client=model))
 
-    resp = client.post("/documents", files={"file": ("doc.pdf", make_pdf(3), "application/pdf")})
+    resp = client.post("/documents", files=[("files", ("doc.pdf", make_pdf(3), "application/pdf"))])
     assert resp.status_code == 202
     job_id = resp.json()["job_id"]
     results = client.get(f"/jobs/{job_id}").json()["results"]
@@ -103,5 +103,5 @@ def test_single_type_pdf_classifies_each_page_then_extracts_whole_document():
 
 def test_unsupported_upload_returns_400():
     client = TestClient(create_app(config=_config(), model_client=_RecordingModel()))
-    resp = client.post("/documents", files={"file": ("notes.txt", b"hello", "text/plain")})
+    resp = client.post("/documents", files=[("files", ("notes.txt", b"hello", "text/plain"))])
     assert resp.status_code == 400

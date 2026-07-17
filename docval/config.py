@@ -39,6 +39,17 @@ class Config(BaseModel):
         return next((d for d in self.document_types if d.id == type_id), None)
 
 
+def parse_config(data: dict) -> Config:
+    """Validate an already-parsed dict into a Config. Raises ConfigError on failure.
+
+    Shared by load_config (file source) and the API layer (inline request payload).
+    """
+    try:
+        return Config.model_validate(data)
+    except ValidationError as exc:
+        raise ConfigError(f"Config failed validation:\n{exc}") from exc
+
+
 def load_config(path: str | Path) -> Config:
     try:
         text = Path(path).read_text(encoding="utf-8")
@@ -53,7 +64,4 @@ def load_config(path: str | Path) -> Config:
     if not isinstance(data, dict):
         raise ConfigError(f"Config root must be a mapping, got {type(data).__name__}")
 
-    try:
-        return Config.model_validate(data)
-    except ValidationError as exc:
-        raise ConfigError(f"Config file {path!r} failed validation:\n{exc}") from exc
+    return parse_config(data)
