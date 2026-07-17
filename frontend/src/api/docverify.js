@@ -4,15 +4,27 @@
 const defaultDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * Upload a document, then poll the job until it is done, and return the
- * `results` array (one ValidationResult per detected sub-document).
+ * Upload one or more documents and poll until the job completes.
+ *
+ * @param {object} submission
+ *   files          - File[] (one for dokument, one or more for antrag)
+ *   submissionType - 'dokument' | 'antrag'  (default 'dokument')
+ *   config         - JSON string for inline config, or null
+ *
+ * @returns {{ results: ValidationResult[], antragMetadata: object|null }}
  */
 export async function submitDocument(
-  file,
+  { files, submissionType = 'dokument', config = null },
   { fetchImpl = fetch, baseUrl = '', pollDelayMs = 1000, delay = defaultDelay } = {},
 ) {
   const form = new FormData()
-  form.append('file', file)
+  form.append('submission_type', submissionType)
+  for (const file of files) {
+    form.append('files', file)
+  }
+  if (config !== null) {
+    form.append('config', config)
+  }
 
   const submitRes = await fetchImpl(`${baseUrl}/documents`, { method: 'POST', body: form })
   if (!submitRes.ok) {
@@ -27,7 +39,9 @@ export async function submitDocument(
     }
     const job = await jobRes.json()
     if (job.status === 'done') {
-      return job.results
+      const results = job.results || (job.result ? [job.result] : [])
+      const antragMetadata = job.antrag_metadata ?? null
+      return { results, antragMetadata }
     }
     await delay(pollDelayMs)
   }
