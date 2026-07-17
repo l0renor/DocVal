@@ -61,3 +61,35 @@ class ValidationResult(BaseModel):
     extracted_data: list[FieldResult] = Field(default_factory=list)
     deficiencies: list[Deficiency] = Field(default_factory=list)
     internal_note: str | None = None
+
+
+class ScanResult(BaseModel):
+    """Result of scan mode: type inferred, all fields extracted, no verdict.
+
+    Honest polymorphism — validation_status and deficiencies are intentionally
+    absent (not nullable) to reflect that no validation was requested.
+    """
+
+    classification: Classification
+    extracted_data: list[FieldResult] = Field(default_factory=list)
+    confidence: float
+
+
+class RequiredField(BaseModel):
+    """A field the caller wants extracted and verified in targeted mode."""
+
+    name: str
+    description: str = ""
+    type_hint: str = ""
+
+
+class TargetedResult(BaseModel):
+    """Result of targeted mode: specific fields verified, no classification step.
+
+    Honest polymorphism — classification is intentionally absent.
+    """
+
+    validation_status: ValidationStatus
+    confidence: float
+    extracted_data: list[FieldResult] = Field(default_factory=list)
+    deficiencies: list[Deficiency] = Field(default_factory=list)

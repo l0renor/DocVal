@@ -10,25 +10,41 @@ from __future__ import annotations
 from typing import Protocol, Sequence
 
 from .config import Config, DocumentTypeConfig
-from .schemas import Classification, ExtractionOutcome
+from .schemas import Classification, ExtractionOutcome, FieldResult, RequiredField
 
 
 class ModelClient(Protocol):
-    def classify(self, images: Sequence[bytes], config: Config) -> Classification: ...
+    def classify(self, images: Sequence[bytes], config: Config | None) -> Classification: ...
 
     def extract_and_validate(
         self, images: Sequence[bytes], doc_type: DocumentTypeConfig
     ) -> ExtractionOutcome: ...
 
+    def scan(self, images: Sequence[bytes]) -> list[FieldResult]: ...
+
+    def extract_targeted(
+        self, images: Sequence[bytes], required_fields: Sequence[RequiredField]
+    ) -> list[FieldResult]: ...
+
 
 class FakeModelClient:
     """Returns pre-canned classification / extraction results for tests."""
 
-    def __init__(self, classification: Classification, extraction: ExtractionOutcome | None = None):
+    def __init__(
+        self,
+        classification: Classification | None = None,
+        extraction: ExtractionOutcome | None = None,
+        scan_fields: list[FieldResult] | None = None,
+        targeted_fields: list[FieldResult] | None = None,
+    ):
         self._classification = classification
         self._extraction = extraction
+        self._scan_fields = scan_fields
+        self._targeted_fields = targeted_fields
 
-    def classify(self, images: Sequence[bytes], config: Config) -> Classification:
+    def classify(self, images: Sequence[bytes], config: Config | None) -> Classification:
+        if self._classification is None:
+            raise AssertionError("FakeModelClient.classify called without a canned classification")
         return self._classification
 
     def extract_and_validate(
@@ -37,6 +53,18 @@ class FakeModelClient:
         if self._extraction is None:
             raise AssertionError("FakeModelClient.extract_and_validate called without a canned extraction")
         return self._extraction
+
+    def scan(self, images: Sequence[bytes]) -> list[FieldResult]:
+        if self._scan_fields is None:
+            raise AssertionError("FakeModelClient.scan called without canned scan_fields")
+        return self._scan_fields
+
+    def extract_targeted(
+        self, images: Sequence[bytes], required_fields: Sequence[RequiredField]
+    ) -> list[FieldResult]:
+        if self._targeted_fields is None:
+            raise AssertionError("FakeModelClient.extract_targeted called without canned targeted_fields")
+        return self._targeted_fields
 
 
 class ScriptedModelClient:
@@ -57,10 +85,18 @@ class ScriptedModelClient:
         self._extractions = extractions or {}
         self._classify_calls = 0
 
-    def classify(self, images: Sequence[bytes], config: Config) -> Classification:
+    def classify(self, images: Sequence[bytes], config: Config | None) -> Classification:
         doc_type = self._page_types[self._classify_calls]
         self._classify_calls += 1
         return Classification(document_type=doc_type)
+
+    def scan(self, images: Sequence[bytes]) -> list[FieldResult]:
+        raise AssertionError("ScriptedModelClient.scan not expected in segmentation tests")
+
+    def extract_targeted(
+        self, images: Sequence[bytes], required_fields: Sequence[RequiredField]
+    ) -> list[FieldResult]:
+        raise AssertionError("ScriptedModelClient.extract_targeted not expected in segmentation tests")
 
     def extract_and_validate(
         self, images: Sequence[bytes], doc_type: DocumentTypeConfig
