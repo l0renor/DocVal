@@ -27,7 +27,9 @@ class ModelClient(Protocol):
     ) -> list[FieldResult]: ...
 
     def analyze_antrag(
-        self, results: Sequence[ValidationResult]
+        self,
+        results: Sequence[ValidationResult],
+        images_per_result: Sequence[Sequence[bytes]],
     ) -> AntragsResult: ...
 
 
@@ -72,7 +74,11 @@ class FakeModelClient:
             raise AssertionError("FakeModelClient.extract_targeted called without canned targeted_fields")
         return self._targeted_fields
 
-    def analyze_antrag(self, results: Sequence[ValidationResult]) -> AntragsResult:
+    def analyze_antrag(
+        self,
+        results: Sequence[ValidationResult],
+        images_per_result: Sequence[Sequence[bytes]],
+    ) -> AntragsResult:
         if self._antrag_result is None:
             raise AssertionError("FakeModelClient.analyze_antrag called without canned antrag_result")
         return self._antrag_result
@@ -109,7 +115,11 @@ class ScriptedModelClient:
     ) -> list[FieldResult]:
         raise AssertionError("ScriptedModelClient.extract_targeted not expected in segmentation tests")
 
-    def analyze_antrag(self, results: Sequence[ValidationResult]) -> AntragsResult:
+    def analyze_antrag(
+        self,
+        results: Sequence[ValidationResult],
+        images_per_result: Sequence[Sequence[bytes]],
+    ) -> AntragsResult:
         raise AssertionError("ScriptedModelClient.analyze_antrag not expected in segmentation tests")
 
     def extract_and_validate(

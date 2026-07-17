@@ -35,6 +35,8 @@ class DocumentTypeConfig(BaseModel):
 
 class Config(BaseModel):
     document_types: list[DocumentTypeConfig]
+    confidence_threshold: float = 0.8
+    image_cap: int = 50
 
     def get(self, type_id: str) -> DocumentTypeConfig | None:
         return next((d for d in self.document_types if d.id == type_id), None)
