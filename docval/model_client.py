@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Protocol, Sequence
 
 from .config import Config, DocumentTypeConfig
-from .schemas import Classification, ExtractionOutcome, FieldResult, RequiredField
+from .schemas import AntragsResult, Classification, ExtractionOutcome, FieldResult, RequiredField, ValidationResult
 
 
 class ModelClient(Protocol):
@@ -26,6 +26,10 @@ class ModelClient(Protocol):
         self, images: Sequence[bytes], required_fields: Sequence[RequiredField]
     ) -> list[FieldResult]: ...
 
+    def analyze_antrag(
+        self, results: Sequence[ValidationResult]
+    ) -> AntragsResult: ...
+
 
 class FakeModelClient:
     """Returns pre-canned classification / extraction results for tests."""
@@ -36,11 +40,13 @@ class FakeModelClient:
         extraction: ExtractionOutcome | None = None,
         scan_fields: list[FieldResult] | None = None,
         targeted_fields: list[FieldResult] | None = None,
+        antrag_result: AntragsResult | None = None,
     ):
         self._classification = classification
         self._extraction = extraction
         self._scan_fields = scan_fields
         self._targeted_fields = targeted_fields
+        self._antrag_result = antrag_result
 
     def classify(self, images: Sequence[bytes], config: Config | None) -> Classification:
         if self._classification is None:
@@ -65,6 +71,11 @@ class FakeModelClient:
         if self._targeted_fields is None:
             raise AssertionError("FakeModelClient.extract_targeted called without canned targeted_fields")
         return self._targeted_fields
+
+    def analyze_antrag(self, results: Sequence[ValidationResult]) -> AntragsResult:
+        if self._antrag_result is None:
+            raise AssertionError("FakeModelClient.analyze_antrag called without canned antrag_result")
+        return self._antrag_result
 
 
 class ScriptedModelClient:
@@ -97,6 +108,9 @@ class ScriptedModelClient:
         self, images: Sequence[bytes], required_fields: Sequence[RequiredField]
     ) -> list[FieldResult]:
         raise AssertionError("ScriptedModelClient.extract_targeted not expected in segmentation tests")
+
+    def analyze_antrag(self, results: Sequence[ValidationResult]) -> AntragsResult:
+        raise AssertionError("ScriptedModelClient.analyze_antrag not expected in segmentation tests")
 
     def extract_and_validate(
         self, images: Sequence[bytes], doc_type: DocumentTypeConfig

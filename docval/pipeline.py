@@ -16,6 +16,7 @@ from .config import Config
 from .model_client import ModelClient
 from .rules import apply_rules
 from .schemas import (
+    AntragsMetadata,
     Deficiency,
     FieldResult,
     Legibility,
@@ -74,6 +75,40 @@ class Pipeline:
             extracted_data=filtered,
             deficiencies=deficiencies,
         )
+
+    def run_antrag(
+        self, images_per_file: Sequence[Sequence[bytes]], config: Config
+    ) -> tuple[list[ValidationResult], AntragsMetadata]:
+        """Antrag bundle: validate each file, union results, then cross-document analysis."""
+        results: list[ValidationResult] = []
+        for images in images_per_file:
+            segments = segment_pages(images, self._model, config)
+            results.extend(self._validate(segment) for segment in segments)
+
+        # Deterministic completeness: required doc types with no matching sub-doc.
+        found_types = {r.classification.document_type for r in results}
+        missing = [
+            dt.id for dt in config.document_types
+            if dt.required and dt.id not in found_types
+        ]
+        missing_findings = [
+            f"Pflichtdokument fehlt: {dt_id}" for dt_id in missing
+        ]
+
+        antrag_result = self._model.analyze_antrag(results)
+        all_findings = antrag_result.cross_document_findings + missing_findings
+
+        # Bundle verdict: accepted only when all docs accepted, no findings, no missing.
+        all_accepted = all(r.validation_status == ValidationStatus.ACCEPTED for r in results)
+        antrag_status = "accepted" if (all_accepted and not all_findings and not missing) else "incomplete"
+
+        metadata = AntragsMetadata(
+            antrag_status=antrag_status,
+            cross_document_findings=all_findings,
+            missing_required_documents=missing,
+            summary=antrag_result.summary,
+        )
+        return results, metadata
 
     def run_scan(self, images: Sequence[bytes]) -> ScanResult:
         """Scan mode: classify freely, extract all fields, return no verdict."""

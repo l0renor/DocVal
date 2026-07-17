@@ -27,6 +27,7 @@ class ExpectedField(BaseModel):
 class DocumentTypeConfig(BaseModel):
     id: str
     description: str
+    required: bool = True
     expected_fields: list[ExpectedField] = Field(default_factory=list)
     criteria: str | None = None
     rules: list[Rule] = Field(default_factory=list)
