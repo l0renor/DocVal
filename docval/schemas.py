@@ -75,6 +75,22 @@ class ScanResult(BaseModel):
     confidence: float
 
 
+class AntragsResult(BaseModel):
+    """Output of the cross-document analysis seam (faked in this slice)."""
+
+    cross_document_findings: list[str] = []
+    summary: str = ""
+
+
+class AntragsMetadata(BaseModel):
+    """Bundle-level verdict + cross-document findings returned in antrag jobs."""
+
+    antrag_status: str
+    cross_document_findings: list[str] = []
+    missing_required_documents: list[str] = []
+    summary: str = ""
+
+
 class RequiredField(BaseModel):
     """A field the caller wants extracted and verified in targeted mode."""
 

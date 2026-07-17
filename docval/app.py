@@ -83,35 +83,47 @@ def create_app(
             except Exception as exc:
                 raise HTTPException(status_code=422, detail=f"required_fields failed validation: {exc}") from exc
 
-        # --- ingest ---
-        file = files[0]
-        data = await file.read()
-        try:
-            images = render_to_images(file.filename, file.content_type, data, ingest_settings)
-        except IngestError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        # --- antrag-specific guards ---
+        if submission_type == "antrag":
+            if resolved_config is None and config_json is None:
+                raise HTTPException(status_code=422, detail="An 'antrag' submission requires a 'config'.")
+            if required_fields_json is not None:
+                raise HTTPException(status_code=422, detail="An 'antrag' submission cannot use 'required_fields'.")
 
-        # --- run pipeline ---
+        # --- ingest + pipeline ---
         pipeline = Pipeline(resolved_config, model_client)
 
-        if required_fields is not None:
-            # Targeted mode: verify specific fields only, no classification.
-            result = pipeline.run_targeted(images, required_fields)
-            job_id = jobs.create_done_dokument(result)
-        elif resolved_config is None:
-            # Scan mode: no policy — infer type, extract all fields, no verdict.
-            result = pipeline.run_scan(images)
-            job_id = jobs.create_done_dokument(result)
-        elif config_json is not None:
-            # Validate mode with inline config: single-result new shape.
-            results = pipeline.run(images)
-            result = results[0] if results else None
-            job_id = jobs.create_done_dokument(result)
+        if submission_type == "antrag":
+            images_per_file = []
+            for f in files:
+                data = await f.read()
+                try:
+                    images_per_file.append(render_to_images(f.filename, f.content_type, data, ingest_settings))
+                except IngestError as exc:
+                    raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            results, antrag_metadata = pipeline.run_antrag(images_per_file, resolved_config)
+            job_id = jobs.create_done_antrag(results, antrag_metadata)
         else:
-            # Legacy path: server-side config, list shape { results[] }.
-            # Kept so existing tests remain green until antrag slice (#18) lands.
-            results = pipeline.run(images)
-            job_id = jobs.create_done(results)
+            file = files[0]
+            data = await file.read()
+            try:
+                images = render_to_images(file.filename, file.content_type, data, ingest_settings)
+            except IngestError as exc:
+                raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+            if required_fields is not None:
+                result = pipeline.run_targeted(images, required_fields)
+                job_id = jobs.create_done_dokument(result)
+            elif resolved_config is None:
+                result = pipeline.run_scan(images)
+                job_id = jobs.create_done_dokument(result)
+            elif config_json is not None:
+                results = pipeline.run(images)
+                result = results[0] if results else None
+                job_id = jobs.create_done_dokument(result)
+            else:
+                results = pipeline.run(images)
+                job_id = jobs.create_done(results)
 
         return {"job_id": job_id}
 
@@ -120,6 +132,15 @@ def create_app(
         job = jobs.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
+
+        # Antrag shape.
+        if job.antrag_metadata is not None:
+            return {
+                "status": job.status,
+                "submission_type": job.submission_type,
+                "results": job.results,
+                "antrag_metadata": job.antrag_metadata,
+            }
 
         # New dokument shape.
         if job.result is not None:

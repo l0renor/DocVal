@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from .schemas import ValidationResult
+from .schemas import AntragsMetadata, ValidationResult
 
 
 @dataclass
@@ -13,9 +13,8 @@ class Job:
     status: str
     submission_type: str
     result: ValidationResult | None = None
-    # Legacy list field retained so existing callers still work during the
-    # migration; new code uses `result` (dokument) or `results` (antrag).
     results: list[ValidationResult] | None = None
+    antrag_metadata: AntragsMetadata | None = None
 
 
 class JobStore:
@@ -32,6 +31,18 @@ class JobStore:
         """New dokument path: single result + submission_type in response."""
         job_id = uuid.uuid4().hex
         self._jobs[job_id] = Job(status="done", submission_type="dokument", result=result)
+        return job_id
+
+    def create_done_antrag(
+        self, results: list[ValidationResult], antrag_metadata: AntragsMetadata
+    ) -> str:
+        job_id = uuid.uuid4().hex
+        self._jobs[job_id] = Job(
+            status="done",
+            submission_type="antrag",
+            results=results,
+            antrag_metadata=antrag_metadata,
+        )
         return job_id
 
     def get(self, job_id: str) -> Job | None:
