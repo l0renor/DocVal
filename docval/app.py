@@ -9,6 +9,7 @@ from typing import Annotated
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 
 from .config import Config, ConfigError, load_config, parse_config
+from .schemas import RequiredField
 from .ingest import IngestError, IngestSettings, render_to_images
 from .jobs import JobStore
 from .model_client import ModelClient
@@ -32,6 +33,7 @@ def create_app(
         files: Annotated[list[UploadFile], File()],
         submission_type: Annotated[str, Form()] = "dokument",
         config_json: Annotated[str | None, Form(alias="config")] = None,
+        required_fields_json: Annotated[str | None, Form(alias="required_fields")] = None,
     ):
         # --- validate submission_type ---
         if submission_type not in _VALID_SUBMISSION_TYPES:
@@ -50,6 +52,13 @@ def create_app(
                     detail="A 'dokument' submission must contain exactly one file.",
                 )
 
+        # --- conflict check ---
+        if config_json is not None and required_fields_json is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="Sending both 'config' and 'required_fields' is ambiguous. Use one or the other.",
+            )
+
         # --- parse inline config if provided ---
         resolved_config: Config | None = config  # legacy fallback
         if config_json is not None:
@@ -62,6 +71,18 @@ def create_app(
             except ConfigError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+        # --- parse required_fields if provided ---
+        required_fields: list[RequiredField] | None = None
+        if required_fields_json is not None:
+            try:
+                raw_fields = json.loads(required_fields_json)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=422, detail=f"required_fields is not valid JSON: {exc}") from exc
+            try:
+                required_fields = [RequiredField.model_validate(f) for f in raw_fields]
+            except Exception as exc:
+                raise HTTPException(status_code=422, detail=f"required_fields failed validation: {exc}") from exc
+
         # --- ingest ---
         file = files[0]
         data = await file.read()
@@ -73,7 +94,11 @@ def create_app(
         # --- run pipeline ---
         pipeline = Pipeline(resolved_config, model_client)
 
-        if resolved_config is None:
+        if required_fields is not None:
+            # Targeted mode: verify specific fields only, no classification.
+            result = pipeline.run_targeted(images, required_fields)
+            job_id = jobs.create_done_dokument(result)
+        elif resolved_config is None:
             # Scan mode: no policy — infer type, extract all fields, no verdict.
             result = pipeline.run_scan(images)
             job_id = jobs.create_done_dokument(result)
