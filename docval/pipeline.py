@@ -9,8 +9,11 @@ DocVerify never filters or blocks uploads).
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Callable, Sequence
+
+_logger = logging.getLogger(__name__)
 
 from .config import Config
 from .model_client import ModelClient
@@ -80,10 +83,41 @@ class Pipeline:
         self, images_per_file: Sequence[Sequence[bytes]], config: Config
     ) -> tuple[list[ValidationResult], AntragsMetadata]:
         """Antrag bundle: validate each file, union results, then cross-document analysis."""
-        results: list[ValidationResult] = []
+        result_pairs: list[tuple[ValidationResult, list[bytes]]] = []
         for images in images_per_file:
             segments = segment_pages(images, self._model, config)
-            results.extend(self._validate(segment) for segment in segments)
+            for segment in segments:
+                result = self._validate(segment)
+                result_pairs.append((result, segment.images))
+
+        results = [r for r, _ in result_pairs]
+
+        # Select images for analyze_antrag: only sub-docs below the confidence threshold.
+        threshold = config.confidence_threshold
+        cap = config.image_cap
+        selected: list[list[bytes]] = []
+        total = 0
+        truncated = False
+        for result, imgs in result_pairs:
+            if result.confidence < threshold:
+                remaining = cap - total
+                if remaining <= 0:
+                    selected.append([])
+                    truncated = True
+                elif len(imgs) > remaining:
+                    selected.append(list(imgs[:remaining]))
+                    total += remaining
+                    truncated = True
+                else:
+                    selected.append(list(imgs))
+                    total += len(imgs)
+            else:
+                selected.append([])
+
+        if truncated:
+            _logger.warning(
+                "analyze_antrag: image cap of %d reached; some sub-document images were truncated", cap
+            )
 
         # Deterministic completeness: required doc types with no matching sub-doc.
         found_types = {r.classification.document_type for r in results}
@@ -95,7 +129,7 @@ class Pipeline:
             f"Pflichtdokument fehlt: {dt_id}" for dt_id in missing
         ]
 
-        antrag_result = self._model.analyze_antrag(results)
+        antrag_result = self._model.analyze_antrag(results, selected)
         all_findings = antrag_result.cross_document_findings + missing_findings
 
         # Bundle verdict: accepted only when all docs accepted, no findings, no missing.
