@@ -20,6 +20,7 @@ from .model_client import ModelClient
 from .rules import apply_rules
 from .schemas import (
     AntragsMetadata,
+    AntragsResult,
     Deficiency,
     FieldResult,
     Legibility,
@@ -125,20 +126,23 @@ class Pipeline:
             dt.id for dt in config.document_types
             if dt.required and dt.id not in found_types
         ]
-        missing_findings = [
-            f"Pflichtdokument fehlt: {dt_id}" for dt_id in missing
-        ]
+        # Cross-document analysis needs at least two sub-docs to compare; skip for one.
+        if len(results) >= 2:
+            antrag_result = self._model.analyze_antrag(results, selected)
+        else:
+            antrag_result = AntragsResult(cross_document_findings=[], summary="")
 
-        antrag_result = self._model.analyze_antrag(results, selected)
-        all_findings = antrag_result.cross_document_findings + missing_findings
-
-        # Bundle verdict: accepted only when all docs accepted, no findings, no missing.
+        # Bundle verdict: accepted only when all docs accepted, no model findings, no missing.
         all_accepted = all(r.validation_status == ValidationStatus.ACCEPTED for r in results)
-        antrag_status = "accepted" if (all_accepted and not all_findings and not missing) else "incomplete"
+        antrag_status = (
+            "accepted"
+            if (all_accepted and not antrag_result.cross_document_findings and not missing)
+            else "incomplete"
+        )
 
         metadata = AntragsMetadata(
             antrag_status=antrag_status,
-            cross_document_findings=all_findings,
+            cross_document_findings=antrag_result.cross_document_findings,
             missing_required_documents=missing,
             summary=antrag_result.summary,
         )

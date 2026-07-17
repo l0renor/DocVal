@@ -43,6 +43,9 @@ export async function submitDocument(
       const antragMetadata = job.antrag_metadata ?? null
       return { results, antragMetadata }
     }
+    if (job.status !== 'pending') {
+      throw new Error(`Job beendet mit Status: ${job.status}`)
+    }
     await delay(pollDelayMs)
   }
 }
