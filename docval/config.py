@@ -35,6 +35,10 @@ class DocumentTypeConfig(BaseModel):
 
 class Config(BaseModel):
     document_types: list[DocumentTypeConfig]
+    # Legibility-based threshold (0–1): sub-documents whose aggregated field
+    # legibility score is strictly below this value have their page images
+    # forwarded to analyze_antrag for cross-document visual inspection.
+    # Note: this is a legibility aggregate, not a classification probability.
     confidence_threshold: float = 0.8
     image_cap: int = 50
 

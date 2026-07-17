@@ -36,10 +36,14 @@ const internalSubmit = props.submitFn
   || (({ files, submissionType, config }) =>
     submitDocument({ files, submissionType, config }, { baseUrl: props.baseUrl }))
 
-async function onFileSelected(value) {
+function onFileSelected(value) {
   const files = Array.isArray(value) ? value : (value ? [value] : [])
-  if (!files.length) return
   selectedFiles.value = files
+}
+
+async function onSubmit() {
+  const files = selectedFiles.value
+  if (!files.length) return
   status.value = 'loading'
   errorMessage.value = ''
   results.value = []
@@ -125,6 +129,17 @@ function loadConfigFromFile(event) {
                   clearable
                   @update:model-value="onFileSelected"
                 />
+
+                <v-btn
+                  data-testid="submit-btn"
+                  color="primary"
+                  variant="flat"
+                  class="mt-2"
+                  :disabled="!selectedFiles.length || status === 'loading'"
+                  @click="onSubmit"
+                >
+                  Prüfen
+                </v-btn>
 
                 <!-- Config editor -->
                 <v-textarea

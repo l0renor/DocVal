@@ -125,15 +125,16 @@ def test_antrag_with_required_fields_returns_422():
 # #4 missing required doc listed in missing_required_documents + German line
 # ---------------------------------------------------------------------------
 
-def test_antrag_missing_required_doc_in_missing_and_findings():
-    # Config requires personalausweis; model classifies as something else → missing
+def test_antrag_missing_required_doc_is_in_missing_list_only():
+    # Config requires personalausweis; model classifies as something else → missing.
+    # The missing doc must appear in missing_required_documents but must NOT be
+    # duplicated as a synthetic string in cross_document_findings.
     config = {
         "document_types": [
             {"id": "personalausweis", "description": "Personalausweis", "required": True},
-            {"id": "mietvertrag", "description": "Mietvertrag", "required": False},
+            {"id": "mietvertrag", "description": "Meitvertrag", "required": False},
         ]
     }
-    # Model always classifies as mietvertrag (not required personalausweis)
     model = FakeModelClient(
         classification=Classification(document_type="mietvertrag"),
         extraction=_accepted_outcome(),
@@ -145,8 +146,9 @@ def test_antrag_missing_required_doc_in_missing_and_findings():
     meta = job["antrag_metadata"]
 
     assert "personalausweis" in meta["missing_required_documents"]
-    # A German line about the missing doc must appear in findings
-    assert any("personalausweis" in f.lower() or "fehlt" in f.lower() for f in meta["cross_document_findings"])
+    # cross_document_findings must contain only the model's own findings, not
+    # synthetic "Pflichtdokument fehlt" strings that belong in missing_required_documents.
+    assert meta["cross_document_findings"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +169,7 @@ def test_antrag_accepted_when_all_ok():
 # ---------------------------------------------------------------------------
 
 def test_antrag_incomplete_when_cross_doc_findings():
+    # Cross-doc analysis requires two or more sub-documents; use two files.
     config = _REQUIRED_ONLY_CONFIG
     model = _accepted_fake(
         antrag_result=AntragsResult(
@@ -175,7 +178,14 @@ def test_antrag_incomplete_when_cross_doc_findings():
         )
     )
     client = _client(model)
-    resp = _upload_antrag(client, config=config)
+    resp = _upload_antrag(
+        client,
+        config=config,
+        files=[
+            ("files", ("a.jpg", b"img1", "image/jpeg")),
+            ("files", ("b.jpg", b"img2", "image/jpeg")),
+        ],
+    )
     job = client.get(f"/jobs/{resp.json()['job_id']}").json()
     meta = job["antrag_metadata"]
     assert meta["antrag_status"] == "incomplete"
@@ -202,6 +212,53 @@ def test_antrag_incomplete_when_sub_doc_invalid_type():
 # ---------------------------------------------------------------------------
 # #8 degenerate: missing required → incomplete, empty findings from model
 # ---------------------------------------------------------------------------
+
+class _AnalyzeCallCounter(FakeModelClient):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.analyze_calls = 0
+
+    def analyze_antrag(self, results, images_per_result):
+        self.analyze_calls += 1
+        return super().analyze_antrag(results, images_per_result)
+
+
+def test_analyze_antrag_not_called_for_single_sub_document():
+    # Cross-document analysis needs at least two docs to compare; calling it for
+    # a single doc wastes an Azure round-trip and can produce hallucinated findings.
+    model = _AnalyzeCallCounter(
+        classification=Classification(document_type="personalausweis"),
+        extraction=_accepted_outcome(),
+        antrag_result=AntragsResult(cross_document_findings=[], summary="OK"),
+    )
+    client = _client(model)
+    resp = _upload_antrag(client, config=_REQUIRED_ONLY_CONFIG)
+    assert resp.status_code == 202
+    client.get(f"/jobs/{resp.json()['job_id']}")
+
+    assert model.analyze_calls == 0
+
+
+def test_analyze_antrag_called_when_multiple_sub_documents():
+    model = _AnalyzeCallCounter(
+        classification=Classification(document_type="personalausweis"),
+        extraction=_accepted_outcome(),
+        antrag_result=AntragsResult(cross_document_findings=[], summary="OK"),
+    )
+    client = _client(model)
+    resp = _upload_antrag(
+        client,
+        config=_REQUIRED_ONLY_CONFIG,
+        files=[
+            ("files", ("a.jpg", b"img1", "image/jpeg")),
+            ("files", ("b.jpg", b"img2", "image/jpeg")),
+        ],
+    )
+    assert resp.status_code == 202
+    client.get(f"/jobs/{resp.json()['job_id']}")
+
+    assert model.analyze_calls == 1
+
 
 def test_antrag_degenerate_missing_required_is_incomplete():
     # Config with a required doc that will never appear (no files classify as it)

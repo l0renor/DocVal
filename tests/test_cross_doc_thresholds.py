@@ -69,8 +69,16 @@ def _make_spy(legibility=Legibility.ILLEGIBLE):
     )
 
 
+def _two_files():
+    """Minimum file list that yields ≥2 sub-documents, so analyze_antrag is called."""
+    return [
+        ("files", ("a.jpg", _FAKE_BYTES, "image/jpeg")),
+        ("files", ("b.jpg", _FAKE_BYTES_2, "image/jpeg")),
+    ]
+
+
 def _upload_antrag(client, config, files=None):
-    upload_files = files or [("files", ("id.jpg", _FAKE_BYTES, "image/jpeg"))]
+    upload_files = files or _two_files()
     return client.post(
         "/documents",
         files=upload_files,

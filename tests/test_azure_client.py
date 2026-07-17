@@ -109,6 +109,62 @@ def test_jpeg_pages_are_sent_with_jpeg_mime_type():
     assert image_part["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
+def _make_result(doc_type):
+    from docval.schemas import Classification as Cls, ValidationResult, ValidationStatus
+    return ValidationResult(
+        validation_status=ValidationStatus.ACCEPTED,
+        confidence=0.9,
+        classification=Cls(document_type=doc_type),
+        extracted_data=[],
+        deficiencies=[],
+    )
+
+
+def test_analyze_antrag_labels_each_image_group_before_its_images():
+    # Without per-group labels the model sees images as a flat blob with no
+    # provenance. A text label specific to each sub-doc type must appear
+    # immediately before that group's first image in the content list.
+    # This rules out the opening JSON summary (which mentions all types) serving
+    # as the "label" — each group needs its own dedicated text block.
+    from docval.schemas import AntragsResult
+
+    parsed = AntragsResult(cross_document_findings=[], summary="OK")
+    client, completions = _fake_client(parsed)
+    mc = AzureModelClient(client, deployment="gpt-5.5")
+
+    mc.analyze_antrag(
+        [_make_result("personalausweis"), _make_result("mietvertrag")],
+        [[b"img-a"], [b"img-b"]],
+    )
+
+    call = completions.calls[0]
+    user_content = next(m["content"] for m in call["messages"] if m["role"] == "user")
+
+    # Build a list of (content_type, text_or_empty) for easy slicing.
+    blocks = [(p.get("type"), p.get("text", "")) for p in user_content]
+
+    # Find the index of each group's first image in the flat content list.
+    # img-a is the image for group 0 (personalausweis); img-b for group 1 (mietvertrag).
+    img_indices = [i for i, (t, _) in enumerate(blocks) if t == "image_url"]
+    assert len(img_indices) == 2, f"expected exactly 2 images in content, got {len(img_indices)}"
+
+    # Each group's first image must be immediately preceded by a dedicated text
+    # block (not another image) that names the sub-doc type.
+    def label_before(idx):
+        if idx == 0:
+            return ""
+        prev_type, prev_text = blocks[idx - 1]
+        return prev_text if prev_type == "text" else ""
+
+    label_for_ausweis = label_before(img_indices[0])
+    label_for_mietvertrag = label_before(img_indices[1])
+
+    assert "personalausweis" in label_for_ausweis, \
+        f"expected 'personalausweis' in text immediately before first image, got: {label_for_ausweis!r}"
+    assert "mietvertrag" in label_for_mietvertrag, \
+        f"expected 'mietvertrag' in text immediately before second image, got: {label_for_mietvertrag!r}"
+
+
 def test_extract_and_validate_returns_parsed_outcome_and_sends_images():
     parsed = ExtractionOutcome(
         validation_status=ValidationStatus.ACCEPTED,

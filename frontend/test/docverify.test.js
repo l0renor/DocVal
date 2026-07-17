@@ -101,6 +101,14 @@ describe('submitDocument', () => {
     expect(form.getAll('files')).toHaveLength(2)
   })
 
+  it('throws a readable error when the job status is "error"', async () => {
+    const { fetchImpl } = fakeBackend({ pollResponses: [{ status: 'error', message: 'model timeout' }] })
+
+    await expect(
+      submitDocument({ files: [file()] }, { fetchImpl, baseUrl: '/api', delay: () => {} }),
+    ).rejects.toThrow(/error/)
+  })
+
   it('omits config field when config is null', async () => {
     const { fetchImpl, capturedForms } = fakeBackend({ pollResponses: [DONE_DOKUMENT] })
 

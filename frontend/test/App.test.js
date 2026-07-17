@@ -4,10 +4,17 @@ import { renderWithVuetify } from './render.js'
 import App from '@/App.vue'
 
 // Drop files onto the (hidden) native file input that Vuetify's v-file-input renders.
-async function uploadFiles(container, files) {
+async function selectFiles(container, files) {
   const input = container.querySelector('input[type="file"]')
   Object.defineProperty(input, 'files', { value: files, configurable: true })
   await fireEvent.change(input)
+}
+
+// Select files then click the submit button.
+async function uploadFiles(container, files) {
+  await selectFiles(container, files)
+  const btn = container.querySelector('[data-testid="submit-btn"]')
+  await fireEvent.click(btn)
 }
 
 const file = () => new File(['x'], 'ausweis.pdf', { type: 'application/pdf' })
@@ -53,6 +60,24 @@ describe('App', () => {
     await uploadFiles(container, [file()])
 
     await waitFor(() => expect(getByText(/Upload fehlgeschlagen \(HTTP 415\)/)).toBeTruthy())
+  })
+
+  it('does not submit when files are selected without clicking the button', async () => {
+    const submitFn = makeSubmitFn()
+    const { container } = renderWithVuetify(App, { props: { submitFn } })
+
+    await selectFiles(container, [file()])
+
+    expect(submitFn).not.toHaveBeenCalled()
+  })
+
+  it('submit button is disabled before any file is selected', () => {
+    const { container } = renderWithVuetify(App, {
+      props: { submitFn: makeSubmitFn() },
+    })
+    const btn = container.querySelector('[data-testid="submit-btn"]')
+    expect(btn).toBeTruthy()
+    expect(btn.disabled).toBe(true)
   })
 
   it('shows the mode toggle with dokument and antrag options', () => {

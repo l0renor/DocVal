@@ -216,8 +216,13 @@ class AzureModelClient:
             }
         ]
 
-        # Append selected page images (only those forwarded by the threshold logic).
-        for imgs in images_per_result:
+        # Append selected page images with a per-group label so the model knows
+        # which images belong to which sub-document.
+        for result, imgs in zip(results, images_per_result):
+            if not imgs:
+                continue
+            doc_type = result.classification.document_type
+            content.append({"type": "text", "text": f"Seiten zu Dokument (Typ: {doc_type}):"})
             for image in imgs:
                 content.append({"type": "image_url", "image_url": {"url": _data_url(image)}})
 
