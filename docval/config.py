@@ -40,7 +40,7 @@ class Config(BaseModel):
     # forwarded to analyze_antrag for cross-document visual inspection.
     # Note: this is a legibility aggregate, not a classification probability.
     confidence_threshold: float = 0.8
-    image_cap: int = 50
+    image_cap: int = Field(default=50, ge=1, le=500)
 
     def get(self, type_id: str) -> DocumentTypeConfig | None:
         return next((d for d in self.document_types if d.id == type_id), None)

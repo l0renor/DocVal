@@ -130,3 +130,26 @@ def test_parse_config_accepts_valid_dict():
 def test_parse_config_raises_config_error_on_malformed_dict():
     with pytest.raises(ConfigError):
         parse_config({"document_types": "not-a-list"})
+
+
+def test_format_rule_with_invalid_regex_raises_config_error():
+    # A client-supplied regex that doesn't compile must be caught at config load
+    # time (ConfigError), not later as an uncaught exception during evaluation.
+    with pytest.raises(ConfigError, match="pattern"):
+        parse_config({
+            "document_types": [{
+                "id": "x",
+                "description": "X",
+                "rules": [{"field": "f", "kind": "format", "pattern": "[unclosed"}],
+            }]
+        })
+
+
+def test_image_cap_above_maximum_raises_config_error():
+    # An uncapped image_cap lets a caller drive up Azure costs arbitrarily.
+    # Values above 500 are rejected at config validation time.
+    with pytest.raises(ConfigError):
+        parse_config({
+            "document_types": [{"id": "x", "description": "X"}],
+            "image_cap": 501,
+        })
