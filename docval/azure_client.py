@@ -9,17 +9,39 @@ is loaded if present). Both calls use structured outputs (Pydantic
 from __future__ import annotations
 
 import base64
+import json
 import os
 from typing import Mapping, Sequence
 
 from .config import Config, ConfigError, DocumentTypeConfig
-from .schemas import Classification, ExtractionOutcome
+from .schemas import (
+    AntragsResult,
+    Classification,
+    ExtractionOutcome,
+    FieldResult,
+    RequiredField,
+    ValidationResult,
+)
 
 DEFAULT_API_VERSION = "2024-10-21"
 
 
 def _data_url(image: bytes, mime: str = "image/jpeg") -> str:
     return f"data:{mime};base64,{base64.b64encode(image).decode('ascii')}"
+
+
+def _compact_doc(result: ValidationResult) -> dict:
+    """Compact per-document summary for the analyze_antrag prompt."""
+    return {
+        "type": result.classification.document_type,
+        "status": result.validation_status.value,
+        "fields": {
+            f.name: f.value
+            for f in result.extracted_data
+            if f.value is not None
+        },
+        "deficiencies": [d.field for d in result.deficiencies],
+    }
 
 
 class AzureModelClient:
@@ -124,5 +146,91 @@ class AzureModelClient:
         ]
         completion = self._client.chat.completions.parse(
             model=self._deployment, messages=messages, response_format=ExtractionOutcome
+        )
+        return completion.choices[0].message.parsed
+
+    def scan(self, images: Sequence[bytes]) -> list[FieldResult]:
+        """Extract all visible fields from a document without validation.
+
+        Pending full implementation — scan mode on the Azure client is not yet
+        wired up (see issue backlog). Raises if called in production.
+        """
+        raise NotImplementedError(
+            "AzureModelClient.scan is not yet implemented. "
+            "Use FakeModelClient in tests or implement this method."
+        )
+
+    def extract_targeted(
+        self, images: Sequence[bytes], required_fields: Sequence[RequiredField]
+    ) -> list[FieldResult]:
+        """Extract specific requested fields only, no classification.
+
+        Pending full implementation — targeted mode on the Azure client is not
+        yet wired up (see issue backlog). Raises if called in production.
+        """
+        raise NotImplementedError(
+            "AzureModelClient.extract_targeted is not yet implemented. "
+            "Use FakeModelClient in tests or implement this method."
+        )
+
+    def analyze_antrag(
+        self,
+        results: Sequence[ValidationResult],
+        images_per_result: Sequence[Sequence[bytes]],
+    ) -> AntragsResult:
+        """Cross-document analysis: check all sub-documents for genuine discrepancies.
+
+        Builds a compact JSON summary of every sub-document (type, status, extracted
+        fields, deficiencies) and appends the selected page images. The model is
+        constrained to German output and must not assert a discrepancy unless at
+        least two data-bearing documents carry comparable identity data.
+        """
+        docs_json = json.dumps(
+            [_compact_doc(r) for r in results],
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        content: list[dict] = [
+            {
+                "type": "text",
+                "text": (
+                    "Eingereichte Dokumente (kompakte Zusammenfassung):\n"
+                    f"{docs_json}\n\n"
+                    "Prüfe die obigen Dokumente auf inhaltliche Widersprüche "
+                    "(z. B. Namensabweichungen zwischen Ausweis und Mietvertrag). "
+                    "Melde ausschließlich echte, belegbare Diskrepanzen. "
+                    "Behaupte keine Diskrepanz, wenn nicht mindestens zwei Dokumente "
+                    "vergleichbare Identitätsdaten enthalten. "
+                    "Schreibe Befunde und Zusammenfassung auf Deutsch."
+                ),
+            }
+        ]
+
+        # Append selected page images (only those forwarded by the threshold logic).
+        for imgs in images_per_result:
+            for image in imgs:
+                content.append({"type": "image_url", "image_url": {"url": _data_url(image)}})
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Du bist ein Prüfsystem für deutsche Behörden. "
+                    "Du analysierst mehrere eingereichte Dokumente auf inhaltliche Widersprüche. "
+                    "Melde nur echte, belegbare Diskrepanzen — keine Vermutungen. "
+                    "Behaupte keine Diskrepanz, wenn nicht mindestens zwei Dokumente "
+                    "vergleichbare Identitätsdaten enthalten. "
+                    "Gib Befunde (cross_document_findings) und Zusammenfassung (summary) "
+                    "ausschließlich auf Deutsch aus."
+                ),
+            },
+            {"role": "user", "content": content},
+        ]
+
+        completion = self._client.chat.completions.parse(
+            model=self._deployment,
+            messages=messages,
+            response_format=AntragsResult,
         )
         return completion.choices[0].message.parsed
