@@ -71,21 +71,21 @@ def create_app(
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
         # --- run pipeline ---
-        if resolved_config is None:
-            # No config: scan mode (issue #16). For now, return a placeholder
-            # until scan mode is implemented.
-            raise HTTPException(status_code=422, detail="config is required for dokument validation (scan mode not yet implemented).")
-
         pipeline = Pipeline(resolved_config, model_client)
-        results = pipeline.run(images)
 
-        if config_json is not None:
-            # New inline-config path: single-result shape { status, submission_type, result }.
+        if resolved_config is None:
+            # Scan mode: no policy — infer type, extract all fields, no verdict.
+            result = pipeline.run_scan(images)
+            job_id = jobs.create_done_dokument(result)
+        elif config_json is not None:
+            # Validate mode with inline config: single-result new shape.
+            results = pipeline.run(images)
             result = results[0] if results else None
             job_id = jobs.create_done_dokument(result)
         else:
             # Legacy path: server-side config, list shape { results[] }.
             # Kept so existing tests remain green until antrag slice (#18) lands.
+            results = pipeline.run(images)
             job_id = jobs.create_done(results)
 
         return {"job_id": job_id}

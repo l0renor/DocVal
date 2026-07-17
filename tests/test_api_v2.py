@@ -114,12 +114,17 @@ def test_unknown_submission_type_returns_422():
     assert resp.status_code == 422
 
 
-def test_no_config_returns_422_until_scan_mode_implemented():
-    # Scan mode is issue #16. Until then, omitting config must not crash the
-    # server — it returns a clear 422 explaining scan mode is not yet available.
-    resp = _upload(_client())
-    assert resp.status_code == 422
-    assert "scan" in resp.json()["detail"].lower()
+def test_no_config_routes_to_scan_mode():
+    # Omitting config triggers scan mode (issue #16) — not a 422.
+    # Scan mode requires a FakeModelClient with scan_fields; the default
+    # _accepted_fake has none, so just verify the request completes (202).
+    from docval.schemas import FieldResult, Legibility
+    scan_model = FakeModelClient(
+        classification=Classification(document_type="personalausweis"),
+        scan_fields=[FieldResult(name="nachname", value="X", legibility=Legibility.LEGIBLE)],
+    )
+    resp = _upload(TestClient(create_app(model_client=scan_model)))
+    assert resp.status_code == 202
 
 
 def test_dokument_with_inline_config_returns_new_job_shape():

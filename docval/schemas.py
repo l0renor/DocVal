@@ -61,3 +61,15 @@ class ValidationResult(BaseModel):
     extracted_data: list[FieldResult] = Field(default_factory=list)
     deficiencies: list[Deficiency] = Field(default_factory=list)
     internal_note: str | None = None
+
+
+class ScanResult(BaseModel):
+    """Result of scan mode: type inferred, all fields extracted, no verdict.
+
+    Honest polymorphism — validation_status and deficiencies are intentionally
+    absent (not nullable) to reflect that no validation was requested.
+    """
+
+    classification: Classification
+    extracted_data: list[FieldResult] = Field(default_factory=list)
+    confidence: float

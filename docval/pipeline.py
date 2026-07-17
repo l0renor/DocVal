@@ -18,6 +18,7 @@ from .rules import apply_rules
 from .schemas import (
     FieldResult,
     Legibility,
+    ScanResult,
     ValidationResult,
     ValidationStatus,
 )
@@ -40,13 +41,23 @@ def aggregate_confidence(fields: Sequence[FieldResult]) -> float:
 class Pipeline:
     def __init__(
         self,
-        config: Config,
+        config: Config | None,
         model_client: ModelClient,
         today: Callable[[], date] = date.today,
     ):
         self._config = config
         self._model = model_client
         self._today = today
+
+    def run_scan(self, images: Sequence[bytes]) -> ScanResult:
+        """Scan mode: classify freely, extract all fields, return no verdict."""
+        classification = self._model.classify(images, config=None)
+        fields = self._model.scan(images)
+        return ScanResult(
+            classification=classification,
+            extracted_data=fields,
+            confidence=aggregate_confidence(fields),
+        )
 
     def run(self, images: Sequence[bytes]) -> list[ValidationResult]:
         """Segment the upload, then validate each sub-document independently."""
