@@ -81,12 +81,11 @@ describe('App', () => {
   })
 
   it('shows the mode toggle with dokument and antrag options', () => {
-    const { getAllByText } = renderWithVuetify(App, {
+    const { getByRole } = renderWithVuetify(App, {
       props: { submitFn: makeSubmitFn() },
     })
-    // Toggle buttons: at least one element with exactly "Dokument" and "Antrag"
-    expect(getAllByText('Dokument').length).toBeGreaterThan(0)
-    expect(getAllByText('Antrag').length).toBeGreaterThan(0)
+    expect(getByRole('button', { name: 'Dokument' })).toBeTruthy()
+    expect(getByRole('button', { name: 'Antrag' })).toBeTruthy()
   })
 
   it('shows the config editor textarea', () => {

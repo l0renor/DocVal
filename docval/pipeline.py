@@ -13,8 +13,6 @@ import logging
 from datetime import date
 from typing import Callable, Sequence
 
-_logger = logging.getLogger(__name__)
-
 from .config import Config
 from .model_client import ModelClient
 from .rules import apply_rules
@@ -31,6 +29,8 @@ from .schemas import (
     ValidationStatus,
 )
 from .segment import Segment, segment_pages
+
+_logger = logging.getLogger(__name__)
 
 _LEGIBILITY_SCORE = {
     Legibility.LEGIBLE: 1.0,

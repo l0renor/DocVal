@@ -7,7 +7,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .schemas import AntragsMetadata, ValidationResult
+from .schemas import AntragsMetadata, ScanResult, TargetedResult, ValidationResult
+
+_DokumentResult = ValidationResult | ScanResult | TargetedResult
 
 _DEFAULT_TTL = 300  # 5 minutes
 
@@ -22,7 +24,7 @@ class _Entry:
 class Job:
     status: str
     submission_type: str
-    result: ValidationResult | None = None
+    result: ValidationResult | ScanResult | TargetedResult | None = None
     results: list[ValidationResult] | None = None
     antrag_metadata: AntragsMetadata | None = None
 
@@ -53,7 +55,7 @@ class JobStore:
         """Validate mode: one result per sub-document of the upload."""
         return self._store(Job(status="done", submission_type="dokument", results=results))
 
-    def create_done_dokument(self, result: ValidationResult) -> str:
+    def create_done_dokument(self, result: _DokumentResult) -> str:
         """New dokument path: single result + submission_type in response."""
         return self._store(Job(status="done", submission_type="dokument", result=result))
 

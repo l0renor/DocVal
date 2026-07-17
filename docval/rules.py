@@ -38,6 +38,11 @@ class Rule(BaseModel):
     def _require_params_for_kind(self) -> "Rule":
         if self.kind is RuleKind.FORMAT and self.pattern is None:
             raise ValueError("a 'format' rule requires a 'pattern'")
+        if self.kind is RuleKind.FORMAT and self.pattern is not None:
+            try:
+                re.compile(self.pattern)
+            except re.error as exc:
+                raise ValueError(f"invalid pattern {self.pattern!r}: {exc}") from exc
         if self.kind is RuleKind.ALLOWED_VALUES and not self.allowed:
             raise ValueError("an 'allowed_values' rule requires a non-empty 'allowed' list")
         return self
