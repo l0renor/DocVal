@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DocVal — Pitch</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --ink: #15181f;
+    --muted: #5b6472;
+    --line: #e6e9f0;
+    --accent: #2547d0;
+    --accent-soft: #eaeffe;
+    --accent-2: #0f9d8f;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --good: #16a34a;
+    --radius: 18px;
+    --maxw: 980px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* deck */
+  .deck { position: fixed; inset: 0; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 7vh 8vw;
+    opacity: 0; visibility: hidden;
+    transform: translateY(18px);
+    transition: opacity .45s ease, transform .45s ease, visibility .45s;
+    max-width: 1400px; margin: 0 auto;
+  }
+  .slide.active { opacity: 1; visibility: visible; transform: none; }
+  .slide-inner { width: 100%; max-width: var(--maxw); margin: 0 auto; }
+
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: clamp(.78rem, 1.4vw, .95rem);
+    font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 22px;
+  }
+  .kicker::before {
+    content: ""; width: 26px; height: 2px; background: var(--accent); border-radius: 2px;
+  }
+  h1 { font-size: clamp(2.4rem, 6.4vw, 4.6rem); line-height: 1.02; letter-spacing: -.02em; font-weight: 800; }
+  h2 { font-size: clamp(1.9rem, 4.6vw, 3.1rem); line-height: 1.06; letter-spacing: -.015em; font-weight: 800; }
+  .lead { font-size: clamp(1.1rem, 2.1vw, 1.5rem); color: var(--muted); line-height: 1.5; margin-top: 22px; max-width: 760px; }
+  p.big { font-size: clamp(1.25rem, 2.5vw, 1.9rem); line-height: 1.45; margin-top: 18px; max-width: 820px; }
+
+  .list { margin-top: 34px; display: grid; gap: 16px; max-width: 840px; }
+  .item { display: flex; gap: 16px; align-items: flex-start; font-size: clamp(1.05rem, 1.9vw, 1.35rem); line-height: 1.45; }
+  .item .dot { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent); font-weight: 800; font-size: .95rem; margin-top: 2px; }
+  .item b { font-weight: 700; }
+  .item .sub { color: var(--muted); font-size: .92em; }
+
+  /* cards / grid */
+  .grid { margin-top: 36px; display: grid; gap: 18px; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 24px; box-shadow: 0 1px 2px rgba(20,24,31,.04);
+  }
+  .card .ico { font-size: 1.7rem; }
+  .card h3 { font-size: clamp(1.05rem, 1.9vw, 1.3rem); margin: 12px 0 8px; letter-spacing: -.01em; }
+  .card p { color: var(--muted); font-size: clamp(.92rem, 1.5vw, 1.05rem); line-height: 1.45; }
+
+  /* pipeline */
+  .pipe { margin-top: 40px; display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; flex: 1; min-width: 150px; }
+  .step .n { font-size: .8rem; font-weight: 800; color: var(--accent); letter-spacing: .1em; }
+  .step .t { font-size: clamp(1rem, 1.7vw, 1.2rem); font-weight: 700; margin-top: 6px; }
+  .step .d { color: var(--muted); font-size: .92rem; margin-top: 6px; line-height: 1.4; }
+  .arrow { align-self: center; color: var(--accent); font-size: 1.6rem; padding: 0 10px; font-weight: 700; }
+
+  /* metrics */
+  .metrics { margin-top: 38px; display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+  .metric { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; }
+  .metric .v { font-size: clamp(1.8rem, 3.6vw, 2.7rem); font-weight: 800; letter-spacing: -.02em; color: var(--accent); }
+  .metric .l { color: var(--muted); margin-top: 8px; font-size: clamp(.92rem,1.5vw,1.05rem); line-height: 1.4; }
+
+  .tags { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .tag { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; font-size: .98rem; font-weight: 600; color: var(--ink); }
+  .tag.accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* title slide flourish */
+  .title-slide { background:
+     radial-gradient(1100px 600px at 85% -10%, #e9edff 0%, rgba(233,237,255,0) 60%),
+     radial-gradient(900px 500px at -10% 110%, #e6fbf6 0%, rgba(230,251,246,0) 55%);
+  }
+  .brand { display:flex; align-items:center; gap:14px; margin-bottom: 30px; }
+  .logo { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1.5rem; box-shadow: 0 8px 24px rgba(37,71,208,.28); }
+  .title-slide h1 .accentword { color: var(--accent); }
+  .footnote { margin-top: 40px; color: var(--muted); font-size: 1.02rem; }
+
+  .closing { background:
+     radial-gradient(1000px 600px at 50% -20%, #e9edff 0%, rgba(233,237,255,0) 60%); text-align:center; }
+  .closing .slide-inner { display:flex; flex-direction:column; align-items:center; }
+
+  /* chrome */
+  .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0; transition: width .35s ease; z-index: 10; }
+  .counter { position: fixed; bottom: 22px; right: 26px; font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; z-index: 10; }
+  .dots { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 9px; z-index: 10; }
+  .dots b { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all .25s; border: none; padding: 0; }
+  .dots b.on { background: var(--accent); transform: scale(1.35); }
+  .hint { position: fixed; bottom: 20px; left: 26px; font-size: .82rem; color: var(--muted); z-index: 10; }
+  .nav { position: fixed; inset: 0; display: flex; z-index: 5; }
+  .nav .half { flex: 1; cursor: pointer; }
+
+  @media (max-width: 760px) {
+    .grid.cols-3, .grid.cols-2, .metrics { grid-template-columns: 1fr; }
+    .arrow { display: none; }
+    .slide { padding: 8vh 7vw; }
+  }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<div class="nav"><div class="half" id="navPrev"></div><div class="half" id="navNext"></div></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 — Title -->
+  <section class="slide title-slide">
+    <div class="slide-inner">
+      <div class="brand">
+        <div class="logo">D</div>
+        <span style="font-weight:700; letter-spacing:.04em; color:var(--muted)">DocVal · DocVerify</span>
+      </div>
+      <h1>Anträge prüfen,<br><span class="accentword">bevor</span> sie Arbeit machen.</h1>
+      <p class="lead">KI-gestützte Vorprüfung eingereichter Dokumente für die öffentliche Verwaltung — damit sich Sachbearbeiter auf das Wesentliche konzentrieren können.</p>
+      <p class="footnote">5-Minuten-Pitch · Konzept, Lösung & Ergebnisse</p>
+    </div>
+  </section>
+
+  <!-- 2 — Problem -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">Die Herausforderung</span>
+      <h2>Unvollständige Anträge kosten den Fachbereich Zeit.</h2>
+      <div class="list">
+        <div class="item"><span class="dot">1</span><div>Viele Anträge werden mit <b>fehlerhaften oder unvollständigen Dokumenten</b> hochgeladen.</div></div>
+        <div class="item"><span class="dot">2</span><div>Das erzeugt <b>Nachforderungen</b> und Rückfragen — und damit Verzögerungen für die Bürger:innen.</div></div>
+        <div class="item"><span class="dot">3</span><div>Jeder Anhang muss <b>manuell vorgeprüft</b> werden: richtiger Typ? alle Pflichtangaben lesbar? — langsam, wiederholend, fehleranfällig.</div></div>
+      </div>
+      <p class="lead">Knappe Personalkapazität wird durch eine Aufgabe gebunden, die sich automatisieren lässt.</p>
+    </div>
+  </section>
+
+  <!-- 3 — Solution -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">Die Lösung</span>
+      <h2>DocVal prüft Dokumente automatisch vor.</h2>
+      <p class="big">Ein konfigurierbarer, KI-gestützter Dienst, der eingereichte Dokumente <b>klassifiziert</b>, auf <b>Vollständigkeit und Lesbarkeit</b> prüft und die relevanten Daten <b>extrahiert</b> — und das Ergebnis strukturiert zurückmeldet.</p>
+      <div class="grid cols-3">
+        <div class="card"><div class="ico">🧭</div><h3>Meldet, blockiert nicht</h3><p>DocVal liefert ein Urteil — Filtern, Löschen oder Weiterleiten bleibt beim Fachverfahren. Der Mensch entscheidet.</p></div>
+        <div class="card"><div class="ico">⚙️</div><h3>Konfigurierbar</h3><p>Fachaufsichten definieren Dokumenttypen und Regeln in nahezu natürlicher Sprache — ohne Programmierung.</p></div>
+        <div class="card"><div class="ico">🔒</div><h3>Datensparsam</h3><p>Stateless: keine dauerhafte Speicherung von Bürgerdaten. Das Fachverfahren bleibt führendes System.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 — How it works -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">So funktioniert es</span>
+      <h2>Zweistufige Prüfung in einer klaren Pipeline.</h2>
+      <div class="pipe">
+        <div class="step"><div class="n">UPLOAD</div><div class="t">Dokument</div><div class="d">PDF / JPG / PNG, auch mehrseitig oder gebündelt.</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">STUFE 1</div><div class="t">Typprüfung</div><div class="d">Ist es der erwartete Dokumenttyp? Falscher Typ wird gemeldet.</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">STUFE 2</div><div class="t">Inhalt &amp; Vollständigkeit</div><div class="d">Pflichtfelder vorhanden &amp; lesbar? Daten werden extrahiert.</div></div>
+        <div class="arrow">→</div>
+        <div class="step"><div class="n">ERGEBNIS</div><div class="t">Strukturierter Befund</div><div class="d">Status, Mängelliste, extrahierte Daten, Hinweis.</div></div>
+      </div>
+      <div class="list" style="margin-top:30px">
+        <div class="item"><span class="dot">＋</span><div><b>Hybride Regel-Schicht</b> (optional): deterministische, <span class="sub">auditierbare</span> Prüfungen ergänzen das KI-Urteil — z. B. Ablaufdatum, Formate, Pflichtangaben.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 — My role -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">Meine Rolle</span>
+      <h2>Von der Idee bis zur lauffähigen Lösung.</h2>
+      <div class="grid cols-2">
+        <div class="card"><div class="ico">🧩</div><h3>Konzeption &amp; Architektur</h3><p>Design-Entscheidungen strukturiert herausgearbeitet (Scope, Schnittstellen, Datenschutz) und als PRD &amp; Umsetzungs-Tickets festgehalten.</p></div>
+        <div class="card"><div class="ico">🛠️</div><h3>Backend</h3><p>FastAPI + Pydantic, asynchrones Job-Modell, strukturierte Ausgaben über das Azure-Vision-Modell (GPT-5.5).</p></div>
+        <div class="card"><div class="ico">🖥️</div><h3>Frontend</h3><p>Vue 3 + Vuetify als Test- und Assistenz-GUI: Ampel, Dokumentvorschau, Felder mit rot markierten Mängeln.</p></div>
+        <div class="card"><div class="ico">✅</div><h3>Qualität</h3><p>Testgetrieben an der API-Grenze; gefaktes Modell für komplett offline-fähige, schnelle Tests.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 — Dev process -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">Mein Entwicklungsprozess</span>
+      <h2>KI-gestützter Workflow — von der Idee zum Code.</h2>
+      <div class="list" style="margin-top:28px; gap:14px">
+        <div class="item"><span class="dot">1</span><div><b>Forschung &amp; Prototyping</b> — Machbarkeit ausloten: erste Technologien testen, das Problem verstehen, groben Überblick verschaffen. <span class="sub">Bevor es tief in die Entwicklung geht.</span></div></div>
+        <div class="item"><span class="dot">2</span><div><b>Die „Grill"-Session</b> — vage Vorgaben per LLM einem Stresstest unterziehen: die KI hinterfragt, deckt Logiklücken auf und zwingt zur <b>exakten Definition</b> der Anforderungen.</div></div>
+        <div class="item"><span class="dot">3</span><div><b>PRD verfassen</b> — die Erkenntnisse in ein strukturiertes <b>Product Requirements Document</b> gießen: konkret, was gebaut wird — die Leitplanke.</div></div>
+        <div class="item"><span class="dot">4</span><div><b>In Issues zerschneiden</b> — Arbeit in winzige, unabhängige „Tracer Bullets" aufteilen: isolierte Tickets im Kanban-Board, von Agenten <b>parallel</b> abarbeitbar.</div></div>
+        <div class="item"><span class="dot">5</span><div><b>Umsetzung mit KI-Agenten</b> — autonome Agenten arbeiten <b>testgetrieben (TDD)</b>: Ticket nehmen → Test schreiben → Code bis grün → committen.</div></div>
+      </div>
+      <p class="footnote" style="margin-top:26px">Prinzip: schnelles Modell zum Schreiben von Code, tiefgründigeres Modell für Reviews.</p>
+    </div>
+  </section>
+
+  <!-- 7 — Results -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">Ergebnisse</span>
+      <h2>Eine tragfähige Basis — mit klarem Nutzen.</h2>
+      <div class="metrics">
+        <div class="metric"><div class="v">2 Stufen</div><div class="l">Automatische Typ- &amp; Vollständigkeitsprüfung statt manueller Vorprüfung.</div></div>
+        <div class="metric"><div class="v">100 %</div><div class="l">Strukturierte, maschinenlesbare Ergebnisse — direkt in die digitale Akte übernehmbar.</div></div>
+        <div class="metric"><div class="v">0</div><div class="l">dauerhaft gespeicherte Bürgerdaten — Datenschutz by design.</div></div>
+      </div>
+      <div class="list" style="margin-top:30px">
+        <div class="item"><span class="dot">✓</span><div><b>Entlastung der Sachbearbeiter:</b> Routine-Vorprüfung übernimmt die KI.</div></div>
+        <div class="item"><span class="dot">✓</span><div><b>Weniger Nachforderungen:</b> Mängel werden früh und präzise benannt.</div></div>
+        <div class="item"><span class="dot">✓</span><div><b>Auditierbar &amp; konfigurierbar:</b> Fachaufsichten steuern Regeln selbst.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 — Outlook -->
+  <section class="slide">
+    <div class="slide-inner">
+      <span class="kicker">Ausblick</span>
+      <h2>Vom Einzeldokument zum kompletten Antrag.</h2>
+      <div class="grid cols-3">
+        <div class="card"><div class="ico">📑</div><h3>Antrags-Modus</h3><p>Ganze Antragsbündel prüfen, automatisch in Einzeldokumente zerlegen.</p></div>
+        <div class="card"><div class="ico">🔗</div><h3>Dokumentübergreifende Checks</h3><p>Konsistenz prüfen (z. B. Namen/Adressen über Dokumente hinweg) und fehlende Pflichtdokumente erkennen.</p></div>
+        <div class="card"><div class="ico">🧪</div><h3>Dynamische Konfiguration</h3><p>Konfiguration &amp; Extraktionsmodi pro Anfrage — scannen, validieren oder gezielt Felder auslesen.</p></div>
+      </div>
+      <div class="tags">
+        <span class="tag accent">spezifiziert</span>
+        <span class="tag">PRD &amp; Tickets vorhanden</span>
+        <span class="tag">in Umsetzung</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 — Closing -->
+  <section class="slide closing">
+    <div class="slide-inner">
+      <div class="logo" style="margin:0 auto 24px">D</div>
+      <h1 style="font-size:clamp(2rem,5vw,3.4rem)">Vorprüfung, die entlastet.</h1>
+      <p class="lead" style="margin-left:auto;margin-right:auto;text-align:center">DocVal nimmt der Verwaltung die wiederkehrende Dokumentenprüfung ab — schneller für die Bürger:innen, leichter für den Fachbereich.</p>
+      <p class="footnote">Danke. · Fragen &amp; Live-Demo</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="counter"><span id="cur">1</span> / <span id="tot">8</span></div>
+<div class="dots" id="dots"></div>
+<div class="hint">← → zum Blättern</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let i = 0;
+  const progress = document.getElementById('progress');
+  const cur = document.getElementById('cur');
+  const dotsWrap = document.getElementById('dots');
+  document.getElementById('tot').textContent = total;
+
+  slides.forEach((_, n) => {
+    const b = document.createElement('button');
+    b.addEventListener('click', () => go(n));
+    dotsWrap.appendChild(b);
+  });
+  const dots = Array.from(dotsWrap.children);
+
+  function render() {
+    slides.forEach((s, n) => s.classList.toggle('active', n === i));
+    dots.forEach((d, n) => d.classList.toggle('on', n === i));
+    progress.style.width = ((i) / (total - 1) * 100) + '%';
+    cur.textContent = i + 1;
+  }
+  function go(n) { i = Math.max(0, Math.min(total - 1, n)); render(); }
+  function next() { go(i + 1); }
+  function prev() { go(i - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)) { e.preventDefault(); next(); }
+    else if (['ArrowLeft','ArrowUp','PageUp'].includes(e.key)) { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(total - 1);
+    else if (e.key === 'f' || e.key === 'F') { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+  });
+  document.getElementById('navNext').addEventListener('click', next);
+  document.getElementById('navPrev').addEventListener('click', prev);
+
+  // touch swipe
+  let x0 = null;
+  addEventListener('touchstart', e => x0 = e.touches[0].clientX, {passive:true});
+  addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 50) (dx < 0 ? next() : prev());
+    x0 = null;
+  }, {passive:true});
+
+  render();
+</script>
+</body>
+</html>
