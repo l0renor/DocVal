@@ -26,7 +26,16 @@ from .schemas import (
 DEFAULT_API_VERSION = "2024-10-21"
 
 
-def _data_url(image: bytes, mime: str = "image/jpeg") -> str:
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def _data_url(image: bytes) -> str:
+    """Base64 data URL with the MIME type sniffed from the image bytes.
+
+    Ingest produces PNG for rendered PDF pages and passes uploaded JPEG/PNG
+    through unchanged, so these two formats cover everything we send.
+    """
+    mime = "image/png" if image.startswith(_PNG_MAGIC) else "image/jpeg"
     return f"data:{mime};base64,{base64.b64encode(image).decode('ascii')}"
 
 

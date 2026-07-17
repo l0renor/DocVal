@@ -84,6 +84,31 @@ def test_classify_uses_structured_output_and_sends_image():
     assert len(_image_parts(call)) == 1
 
 
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"fake-png-body"
+JPEG_BYTES = b"\xff\xd8\xff\xe0" + b"fake-jpeg-body"
+
+
+def test_png_pages_are_sent_with_png_mime_type():
+    # Ingest renders PDF pages as PNG; the data URL must not claim image/jpeg.
+    client, completions = _fake_client(Classification(document_type="personalausweis"))
+    mc = AzureModelClient(client, deployment="gpt-5.5")
+
+    mc.classify([PNG_BYTES], _config())
+
+    (image_part,) = _image_parts(completions.calls[0])
+    assert image_part["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+def test_jpeg_pages_are_sent_with_jpeg_mime_type():
+    client, completions = _fake_client(Classification(document_type="personalausweis"))
+    mc = AzureModelClient(client, deployment="gpt-5.5")
+
+    mc.classify([JPEG_BYTES], _config())
+
+    (image_part,) = _image_parts(completions.calls[0])
+    assert image_part["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
 def test_extract_and_validate_returns_parsed_outcome_and_sends_images():
     parsed = ExtractionOutcome(
         validation_status=ValidationStatus.ACCEPTED,

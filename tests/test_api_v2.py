@@ -1,8 +1,9 @@
 """Tests for the new dynamic-config + validate-mode API contract (issue #15).
 
 All tests go through the FastAPI HTTP boundary with a faked model client —
-the same convention as test_api.py. The response shape for a dokument job is
-{ status, submission_type, result } (not results[]).
+the same convention as test_api.py. Validate mode returns one result per
+sub-document ({ status, submission_type, results }); scan and targeted mode
+return a single { ... result }.
 """
 
 import json
@@ -127,12 +128,79 @@ def test_no_config_routes_to_scan_mode():
     assert resp.status_code == 202
 
 
+class _UnimplementedModesClient(FakeModelClient):
+    """Mimics AzureModelClient before scan/targeted are implemented."""
+
+    def scan(self, images):
+        raise NotImplementedError("scan is not yet implemented")
+
+    def extract_targeted(self, images, required_fields):
+        raise NotImplementedError("extract_targeted is not yet implemented")
+
+
+def test_scan_mode_returns_501_when_client_does_not_support_it():
+    """A config-less upload against a client without scan must not be a 500."""
+    client = TestClient(create_app(model_client=_UnimplementedModesClient(
+        classification=Classification(document_type="personalausweis"),
+    )))
+    resp = _upload(client)  # no config -> scan mode
+    assert resp.status_code == 501
+    assert "scan" in resp.json()["detail"]
+
+
+def test_targeted_mode_returns_501_when_client_does_not_support_it():
+    client = TestClient(create_app(model_client=_UnimplementedModesClient(
+        classification=Classification(document_type="personalausweis"),
+    )))
+    resp = client.post(
+        "/documents",
+        files=[("files", ("id.jpg", b"img", "image/jpeg"))],
+        data={"required_fields": json.dumps([{"name": "nachname"}])},
+    )
+    assert resp.status_code == 501
+    assert "extract_targeted" in resp.json()["detail"]
+
+
 def test_dokument_with_inline_config_returns_new_job_shape():
-    """POST with config + 1 file -> job has {status, submission_type, result}."""
+    """POST with config + 1 file -> job has {status, submission_type, results}."""
     job = _run(_client(), config=PERSONALAUSWEIS_CONFIG)
 
     assert job["status"] == "done"
     assert job["submission_type"] == "dokument"
-    result = job["result"]
+    (result,) = job["results"]
     assert result["validation_status"] == "accepted"
     assert result["classification"]["document_type"] == "personalausweis"
+
+
+def test_bundled_pdf_with_inline_config_reports_every_sub_document():
+    """A dokument upload that segments into two sub-documents must not drop the second."""
+    import pymupdf
+
+    from docval.model_client import ScriptedModelClient
+
+    doc = pymupdf.open()
+    for _ in range(2):
+        doc.new_page(width=200, height=200)
+    pdf = doc.tobytes()
+    doc.close()
+
+    two_type_config = {
+        "document_types": [
+            {"id": "personalausweis", "description": "ID card"},
+            {"id": "mietvertrag", "description": "Lease contract"},
+        ]
+    }
+    accepted = ExtractionOutcome(validation_status=ValidationStatus.ACCEPTED)
+    model = ScriptedModelClient(
+        page_types=["personalausweis", "mietvertrag"],
+        extractions={"personalausweis": accepted, "mietvertrag": accepted},
+    )
+
+    job = _run(
+        _client(model),
+        files=[("files", ("bundle.pdf", pdf, "application/pdf"))],
+        config=two_type_config,
+    )
+
+    types = [r["classification"]["document_type"] for r in job["results"]]
+    assert types == ["personalausweis", "mietvertrag"]
