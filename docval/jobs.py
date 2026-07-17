@@ -22,7 +22,7 @@ class JobStore:
         self._jobs: dict[str, Job] = {}
 
     def create_done(self, results: list[ValidationResult]) -> str:
-        """Legacy: stores a list of results (existing callers, will migrate)."""
+        """Validate mode: one result per sub-document of the upload."""
         job_id = uuid.uuid4().hex
         self._jobs[job_id] = Job(status="done", submission_type="dokument", results=results)
         return job_id

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from .config import Config, ConfigError, load_config, parse_config
 from .schemas import RequiredField
@@ -91,40 +92,42 @@ def create_app(
                 raise HTTPException(status_code=422, detail="An 'antrag' submission cannot use 'required_fields'.")
 
         # --- ingest + pipeline ---
-        pipeline = Pipeline(resolved_config, model_client)
+        # Rendering and model calls are synchronous and slow; they run in the
+        # threadpool so the event loop stays free for concurrent requests.
+        uploads = [(f.filename, f.content_type, await f.read()) for f in files]
 
-        if submission_type == "antrag":
-            images_per_file = []
-            for f in files:
-                data = await f.read()
-                try:
-                    images_per_file.append(render_to_images(f.filename, f.content_type, data, ingest_settings))
-                except IngestError as exc:
-                    raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
-            results, antrag_metadata = pipeline.run_antrag(images_per_file, resolved_config)
-            job_id = jobs.create_done_antrag(results, antrag_metadata)
-        else:
-            file = files[0]
-            data = await file.read()
+        def _render(filename, content_type, data):
             try:
-                images = render_to_images(file.filename, file.content_type, data, ingest_settings)
+                return render_to_images(filename, content_type, data, ingest_settings)
             except IngestError as exc:
                 raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
-            if required_fields is not None:
-                result = pipeline.run_targeted(images, required_fields)
-                job_id = jobs.create_done_dokument(result)
-            elif resolved_config is None:
-                result = pipeline.run_scan(images)
-                job_id = jobs.create_done_dokument(result)
-            elif config_json is not None:
-                results = pipeline.run(images)
-                result = results[0] if results else None
-                job_id = jobs.create_done_dokument(result)
-            else:
-                results = pipeline.run(images)
-                job_id = jobs.create_done(results)
+        def _process() -> str:
+            pipeline = Pipeline(resolved_config, model_client)
 
+            if submission_type == "antrag":
+                images_per_file = [_render(*upload) for upload in uploads]
+                results, antrag_metadata = pipeline.run_antrag(images_per_file, resolved_config)
+                return jobs.create_done_antrag(results, antrag_metadata)
+
+            images = _render(*uploads[0])
+            if required_fields is not None:
+                try:
+                    result = pipeline.run_targeted(images, required_fields)
+                except NotImplementedError as exc:
+                    raise HTTPException(status_code=501, detail=str(exc)) from exc
+                return jobs.create_done_dokument(result)
+            if resolved_config is None:
+                try:
+                    result = pipeline.run_scan(images)
+                except NotImplementedError as exc:
+                    raise HTTPException(status_code=501, detail=str(exc)) from exc
+                return jobs.create_done_dokument(result)
+            # Validate mode (inline or legacy config): one result per
+            # sub-document — a bundled PDF must not drop segments.
+            return jobs.create_done(pipeline.run(images))
+
+        job_id = await run_in_threadpool(_process)
         return {"job_id": job_id}
 
     @app.get("/jobs/{job_id}")
@@ -150,8 +153,12 @@ def create_app(
                 "result": job.result,
             }
 
-        # Legacy shape (existing tests; will be migrated).
-        return {"status": job.status, "results": job.results}
+        # Validate mode: one result per sub-document.
+        return {
+            "status": job.status,
+            "submission_type": job.submission_type,
+            "results": job.results,
+        }
 
     return app
 
